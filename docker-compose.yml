@@ -1,0 +1,15 @@
+services:
+
+  orthanc:
+    build: orthanc
+    ports: ["8000:8042"]
+    environment:
+      ORTHANC__NAME: "orthanc-pygraphql"
+
+      VERBOSE_ENABLED: "true"
+      VERBOSE_STARTUP: "true"
+      ORTHANC__PYTHON_SCRIPT: "/python/graphql.py"
+      ORTHANC__PYTHON_VERBOSE: "true"
+
+      ORTHANC__REGISTERED_USERS: |
+        {"demo": "demo"}
