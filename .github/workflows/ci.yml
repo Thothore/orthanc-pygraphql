@@ -24,13 +24,15 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install yapf pylint pydicom
+          pip install yapf pylint pydicom ariadne
 
       - name: Check format with yapf (Google Style)
         run: yapf --diff --style google --recursive orthanc/python/
 
       - name: Run pylint
-        run: pylint orthanc/python/
+        run: |
+          pylint orthanc/python/ \
+            --msg-template="::error file={path},line={line},col={column},title=Pylint ({msg_id})::{category}: {msg}"
 
   build:
     name: Build Docker Image
@@ -41,3 +43,23 @@ jobs:
 
       - name: Build with docker compose
         run: docker compose build
+
+      - name: Start docker compose
+        run: docker compose up -d
+
+      - name: Wait for Orthanc to be ready
+        run: |
+          echo "Waiting for Orthanc to start..."
+          timeout 30 bash -c 'while ! curl -s -f -u demo:demo http://localhost:8000/system; do sleep 2; done'
+          echo "Orthanc is ready!"
+
+      - name: Test GraphQL Endpoint
+        run: |
+          response=$(curl -s -X POST -u demo:demo -H "Content-Type: application/json" -d '{"query": "{ hello }"}' http://localhost:8000/graphql)
+          echo "Response: $response"
+          # Check if the output contains the expected "Hello from Orthanc GraphQL!" string
+          if [[ "$response" != *"Hello from Orthanc GraphQL!"* ]]; then
+            echo "GraphQL test failed. Unexpected response."
+            exit 1
+          fi
+          echo "GraphQL test passed!"
