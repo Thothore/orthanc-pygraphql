@@ -6,8 +6,8 @@ FROM orthancteam/orthanc
 RUN apt-get update && apt install -y python3-venv
 RUN python3 -m venv /.venv
 
-RUN /.venv/bin/pip install pydicom
-ENV PYTHONPATH=/.venv/lib64/python3.12/site-packages/
+RUN /.venv/bin/pip install pydicom ariadne
+ENV PYTHONPATH=/.venv/lib/python3.14/site-packages/
 
 RUN mkdir /python
 COPY * /python/
