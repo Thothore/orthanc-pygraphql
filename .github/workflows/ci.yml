@@ -30,7 +30,9 @@ jobs:
         run: yapf --diff --style google --recursive orthanc/python/
 
       - name: Run pylint
-        run: pylint orthanc/python/
+        run: |
+          pylint orthanc/python/ \
+            --msg-template="::error file={path},line={line},col={column},title=Pylint ({msg_id})::{category}: {msg}"
 
   build:
     name: Build Docker Image
