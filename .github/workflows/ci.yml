@@ -55,10 +55,10 @@ jobs:
 
       - name: Test GraphQL Endpoint
         run: |
-          response=$(curl -s -X POST -u demo:demo -H "Content-Type: application/json" -d '{"query": "{ hello }"}' http://localhost:8000/graphql)
+          response=$(curl -s -X POST -u demo:demo -H "Content-Type: application/json" -d '{"query": "{ patients { id } }"}' http://localhost:8000/graphql)
           echo "Response: $response"
-          # Check if the output contains the expected "Hello from Orthanc GraphQL!" string
-          if [[ "$response" != *"Hello from Orthanc GraphQL!"* ]]; then
+          # Check if the output contains the expected patients string structure for an empty/successful list
+          if [[ "$response" != *'"patients":'* ]]; then
             echo "GraphQL test failed. Unexpected response."
             exit 1
           fi
