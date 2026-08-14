@@ -26,8 +26,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install yapf pylint pydicom ariadne
 
-      - name: Check format with yapf (Google Style)
-        run: yapf --diff --style google --recursive orthanc/python/
+      - name: Check format with yapf
+        run: yapf --diff --style google --recursive orthanc/python/ > yapf_diff.patch || true
+        
+      - name: Show yapf formatting errors
+        run: |
+          if [ -s yapf_diff.patch ]; then
+            echo "::error title=YAPF Formatting Error::Formatting issues found. Run 'yapf --in-place --style google --recursive orthanc/python/' locally."
+            echo "--- DIFF ---"
+            cat yapf_diff.patch
+            exit 1
+          fi
 
       - name: Run pylint
         run: |
@@ -55,10 +64,10 @@ jobs:
 
       - name: Test GraphQL Endpoint
         run: |
-          response=$(curl -s -X POST -u demo:demo -H "Content-Type: application/json" -d '{"query": "{ hello }"}' http://localhost:8000/graphql)
+          response=$(curl -s -X POST -u demo:demo -H "Content-Type: application/json" -d '{"query": "{ patients { id } }"}' http://localhost:8000/graphql)
           echo "Response: $response"
-          # Check if the output contains the expected "Hello from Orthanc GraphQL!" string
-          if [[ "$response" != *"Hello from Orthanc GraphQL!"* ]]; then
+          # Check if the output contains the expected patients string structure for an empty/successful list
+          if [[ "$response" != *'"patients":'* ]]; then
             echo "GraphQL test failed. Unexpected response."
             exit 1
           fi
