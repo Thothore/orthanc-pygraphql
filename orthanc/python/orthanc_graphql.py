@@ -30,7 +30,8 @@ query = QueryType()
 def resolve_patients(_, _info, limit=100, since=0):
     """Resolver for the 'patients' query fetching from Orthanc API."""
     # Query Orthanc internal DB bypassing network overhead
-    response = orthanc.RestApiGet(f'/patients?expand&limit={limit}&since={since}')
+    response = orthanc.RestApiGet(
+        f'/patients?expand&limit={limit}&since={since}')
 
     # Parse the returned JSON string into python dicts
     patients_data = json.loads(response)

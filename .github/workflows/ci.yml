@@ -26,8 +26,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install yapf pylint pydicom ariadne
 
-      - name: Check format with yapf (Google Style)
-        run: yapf --diff --style google --recursive orthanc/python/
+      - name: Check format with yapf
+        run: yapf --diff --style google --recursive orthanc/python/ > yapf_diff.patch || true
+        
+      - name: Show yapf formatting errors
+        run: |
+          if [ -s yapf_diff.patch ]; then
+            echo "::error title=YAPF Formatting Error::Formatting issues found. Run 'yapf --in-place --style google --recursive orthanc/python/' locally."
+            echo "--- DIFF ---"
+            cat yapf_diff.patch
+            exit 1
+          fi
 
       - name: Run pylint
         run: |
