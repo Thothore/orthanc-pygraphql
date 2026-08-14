@@ -16,7 +16,7 @@ The easiest way to run the project is using Docker.
 
 1. Clone this repository.
 2. Run `docker-compose up --build`.
-3. Orthanc will be available on port `8042`.
+3. Orthanc will be available on port `8000`. This can be configured in the `docker-compose.yml` file.
 
 ## Example Query
 
