@@ -9,6 +9,20 @@ on:
       - main
 
 jobs:
+  commitlint:
+    name: Lint Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Conventional Commits
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          failOnWarnings: false
+
   lint:
     name: Lint Python
     runs-on: ubuntu-latest
