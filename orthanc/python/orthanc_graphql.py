@@ -2,8 +2,10 @@
 """
 Orthanc GraphQL endpoint implementation using Ariadne.
 """
+import io
 import json
 
+import pydicom
 from ariadne import ObjectType, QueryType, graphql_sync, make_executable_schema
 
 import orthanc
@@ -14,6 +16,7 @@ TYPE_DEFS = """
         id: ID!
         sopInstanceUID: String!
         instanceNumber: String
+        roiNames: [String!]
     }
 
     type Series {
@@ -48,6 +51,7 @@ TYPE_DEFS = """
 
     type Query {
         patients(limit: Int = 100, since: Int = 0): [Patient!]!
+        instance(id: ID!): Instance
     }
 """
 
@@ -55,6 +59,7 @@ query = QueryType()
 patient_type = ObjectType("Patient")
 study_type = ObjectType("Study")
 series_type = ObjectType("Series")
+instance_type = ObjectType("Instance")
 
 
 @query.field("patients")
@@ -79,6 +84,30 @@ def resolve_patients(_, _info, limit=100, since=0):
         })
 
     return results
+
+
+@query.field("instance")
+def resolve_instance(_, _info, id):  # pylint: disable=redefined-builtin,invalid-name
+    """Resolver to fetch a single specific Instance by its Orthanc ID natively."""
+    try:
+        response = orthanc.RestApiGet(f'/instances/{id}')
+        i = json.loads(response)
+
+        # Determine parent modality. We have to do a quick secondary lookup for the parent series
+        # to guarantee the 'roiNames' RTSTRUCT safety check works seamlessly if accessed!
+        parent_series_req = orthanc.RestApiGet(f'/series/{i["ParentSeries"]}')
+        parent_series = json.loads(parent_series_req)
+        s_tags = parent_series.get('MainDicomTags', {})
+
+        tags = i.get('MainDicomTags', {})
+        return {
+            'id': i.get('ID', ''),
+            'sopInstanceUID': tags.get('SOPInstanceUID', ''),
+            'instanceNumber': tags.get('InstanceNumber'),
+            '_parentModality': s_tags.get('Modality', '')
+        }
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
 
 
 @patient_type.field("studies")
@@ -149,16 +178,45 @@ def resolve_series_instances(series_obj, _info, limit=100):
         i_resp = orthanc.RestApiGet(f'/instances/{instance_id}')
         i = json.loads(i_resp)
         tags = i.get('MainDicomTags', {})
+        # Note: We track modality here so we know if it's RTSTRUCT later
+        parent_series_modality = series_obj.get('modality', '')
         results.append({
             'id': i.get('ID', ''),
             'sopInstanceUID': tags.get('SOPInstanceUID', ''),
-            'instanceNumber': tags.get('InstanceNumber')
+            'instanceNumber': tags.get('InstanceNumber'),
+            '_parentModality': parent_series_modality
         })
     return results
 
 
+@instance_type.field("roiNames")
+def resolve_instance_rois(instance_obj, _info):
+    """Resolver extracting ROI Names optimally using pydicom for RTSTRUCT."""
+    # Short circuit if it's not an RTSTRUCT
+    if instance_obj.get('_parentModality') != 'RTSTRUCT':
+        return None
+
+    # Fetch raw bytes natively without HTTP loopback
+    raw_dicom_bytes = orthanc.GetDicomForInstance(instance_obj['id'])
+
+    # Give the raw memory stream directly to PyDicom
+    # Stop before pixels and heavily restrict tags to avoid ROI coordinates parsing hang
+    dataset = pydicom.dcmread(io.BytesIO(raw_dicom_bytes),
+                              stop_before_pixels=True,
+                              specific_tags=['StructureSetROISequence'])
+
+    # Extract the ROINames
+    roi_names = []
+    if hasattr(dataset, 'StructureSetROISequence'):
+        for roi in dataset.StructureSetROISequence:
+            if hasattr(roi, 'ROIName'):
+                roi_names.append(str(roi.ROIName))
+
+    return roi_names
+
+
 schema = make_executable_schema(TYPE_DEFS, query, patient_type, study_type,
-                                series_type)
+                                series_type, instance_type)
 
 
 def graphql_endpoint(output, _url, **request):
